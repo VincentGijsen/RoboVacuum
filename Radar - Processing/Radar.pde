@@ -1,7 +1,7 @@
 /*
   RoboVacuum
  Vincent Gijsen
- 2014, april
+ 2014, april 29
  */
 
 
@@ -20,14 +20,40 @@ float angle;
 PFont b;
 
 
+
 /*
 Commands
  */
 public final static  int START_RADAR =  0x01;
-public final static  int  STOP_RADAR = 0x02;
+public final static  int STOP_RADAR = 0x02;
 
 public final static  int MOVE_PLUS_1 = 0x03;
 public final static  int MOVE_MINUS_1 = 0x04;
+
+
+
+/**
+ Mapping stuff
+ 
+ **/
+public final static int OBSTACLE = 0x01;
+public final static int CLEAR = 0x02;
+public final static int VISITED = 0x04;
+
+
+public final static  int MAP_SIZE_X = 265;
+public final static  int MAP_SIZE_Y = 265;
+public final static  float MAP_TO_DISTANCE_RATIO = 1; //denotes the distance measured mapped to mapentries
+
+
+//robot-start
+public  int ROBOX_X = MAP_SIZE_X/2;
+public  int ROBOX_Y = MAP_SIZE_Y/2;
+
+
+
+int [][] map = new int[MAP_SIZE_X][MAP_SIZE_Y];
+
 
 
 
@@ -49,14 +75,19 @@ int distance;
 void setup() 
 {
   size(900, 768);
-  // I know that the first port in the serial list on my mac
-  // is always my  FTDI adaptor, so I open Serial.list()[0].
-  // On Windows machines, this generally opens COM1.
-  // Open whatever port is the one you're using.
   println(Serial.list());
   String portName = Serial.list()[0];
   myPort = new Serial(this, "/dev/tty.usbmodem1411", 9600);
   //myPort = new Serial(this, "/dev/tty.Bluetooth-Modem", 9600);
+  clearMap();
+}
+
+void clearMap() {
+  for (int x=0; x<  MAP_SIZE_X; x++) {
+    for (int y=0; y< MAP_SIZE_Y; y++) {
+      map[x][y] = CLEAR;
+    }
+  }
 }
 
 void draw()
@@ -94,11 +125,12 @@ void draw()
   }
 
   background(bgcolor);
-  grid(); 
   sweeper();
   circle();
   drawHistoryPoints();
   drawCompass();
+  updateMap();
+  drawMap();
   //translate();
   //stipje();
 
@@ -149,10 +181,10 @@ void drawHistoryPoints() {
     if (val != null) {
       println("val ==", val);
       float circleAngle = map(x, 0, 180, 0, PI);
-      float vectorLength = map(val, 0, 180, 0, radarSize/2);
-      println("rond: " + rond);
+      float vectorLength = map(val, 0, 255, 0, radarSize/2);
+      println("circleAngle: ", circleAngle);
       println("vectorSize: ", vectorLength);
-      l = 200;
+
       float xCoor = xradar - (cos(circleAngle) * vectorLength);
       float yCoor = yradar - (sin(circleAngle) * vectorLength);
       println("calculated: " +  val + " " + xCoor + " " + yCoor);
@@ -170,7 +202,7 @@ void sweeper() {
   strokeWeight(7);
   float f = 0.01;
 
-  int l = distance *2;
+  float l = map( (distance *2), 0, 180, 0, radarSize/2);
   for (int i = 2; i>=1; i--) {
     stroke(sweepercolor, 2*i);
     //duration was 300
@@ -179,8 +211,57 @@ void sweeper() {
   }
 }
 
+void drawMap() {
+  int xOffset = 400;
+  int yOffset = 500;
+  translate(xOffset, yOffset);
+  for (int x=0; x < MAP_SIZE_X; x++) {
+    for (int y=0; y< MAP_SIZE_Y; y++) {
 
-void grid() {
+      switch(map[x][y])
+      {
+      case OBSTACLE:
+        fill(10, 100, 10);
+        break;
+      case CLEAR:
+        fill(200);
+        break;
+      default:
+        fill(20);
+        break;
+      }
+      print("x ", x);
+      print(" y ", y);
+      println(" map[x][y]", map[x][y]);
+      point(x, y);
+    }
+  }
+
+  //restore translate
+  translate(-xOffset, -yOffset);
+}
+
+
+/**
+ UPdates the map based on present coordinates
+ **/
+void updateMap() {
+  int xPoint =(int) (ROBOX_X + (cos(position) * distance * MAP_TO_DISTANCE_RATIO));
+  int yPoint =(int) (ROBOX_Y + (sin(position) * distance * MAP_TO_DISTANCE_RATIO));
+
+  if (xPoint > MAP_SIZE_X)
+    xPoint = MAP_SIZE_X-1;
+
+  if (yPoint > MAP_SIZE_Y)
+    yPoint = MAP_SIZE_Y-1;
+
+  if (xPoint < 0)
+    xPoint = 0;
+
+  if (yPoint < 0)
+    yPoint = 0;
+
+  map[xPoint][yPoint] = OBSTACLE;
 }
 
 
