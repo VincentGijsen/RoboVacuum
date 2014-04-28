@@ -19,7 +19,7 @@ Commands
 #define STOP_RADAR 0x02
 
 #define MOVE_PLUS_1 0x03
-#define MOVE_MINUS_1 0x03
+#define MOVE_MINUS_1 0x04
 
 
 #include <Servo.h>
@@ -114,7 +114,7 @@ void handleCommands(){
       _radarActive = 0;
       break;
      default:
-      //nothing
+      Serial.print("got" + incomingByte);
       break;
 
 
