@@ -8,8 +8,8 @@
 
 #define SERVOMIN 20
 #define SERVOMAX 160
-#define SERVOINCREMENT 10
-#define STEPSLEEP 200
+#define SERVOINCREMENT 5
+#define STEPSLEEP 100
 
 
 /*
@@ -98,6 +98,7 @@ void loop() {
     Serial.write(position);
     Serial.print(",");
     Serial.write(val);
+    Serial.write('\n');
     //  Serial.println(" degree");
   }
 }

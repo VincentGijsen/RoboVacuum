@@ -9,6 +9,8 @@ import processing.serial.*;
 import java.util.Map;
 
 
+NavigationMap map;
+
 color bgcolor = color (0, 0, 0);
 color gridcolor = color (0, 0, 0);
 color sweepercolor = color (102, 250, 81);
@@ -30,29 +32,13 @@ public final static  int STOP_RADAR = 0x02;
 public final static  int MOVE_PLUS_1 = 0x03;
 public final static  int MOVE_MINUS_1 = 0x04;
 
-
-
-/**
- Mapping stuff
- 
- **/
-public final static int OBSTACLE = 0x01;
-public final static int CLEAR = 0x02;
-public final static int VISITED = 0x04;
-
-
-public final static  int MAP_SIZE_X = 265;
-public final static  int MAP_SIZE_Y = 265;
-public final static  float MAP_TO_DISTANCE_RATIO = 1; //denotes the distance measured mapped to mapentries
-
+public final static int MAP_SIZE_X = 256;
+public final static int MAP_SIZE_Y = 256;
+public final static float MAP_RATIO = 0.25;
 
 //robot-start
 public  int ROBOX_X = MAP_SIZE_X/2;
 public  int ROBOX_Y = MAP_SIZE_Y/2;
-
-
-
-int [][] map = new int[MAP_SIZE_X][MAP_SIZE_Y];
 
 
 
@@ -72,6 +58,7 @@ int val;      // Data received from the serial port
 int position;
 int distance;
 
+
 void setup() 
 {
   size(900, 768);
@@ -79,19 +66,12 @@ void setup()
   String portName = Serial.list()[0];
   myPort = new Serial(this, "/dev/tty.usbmodem1411", 9600);
   //myPort = new Serial(this, "/dev/tty.Bluetooth-Modem", 9600);
-  clearMap();
-}
+  map = new NavigationMap(MAP_SIZE_X, MAP_SIZE_Y, MAP_RATIO);
 
-void clearMap() {
-  for (int x=0; x<  MAP_SIZE_X; x++) {
-    for (int y=0; y< MAP_SIZE_Y; y++) {
-      map[x][y] = CLEAR;
-    }
+  myPort.bufferUntil('\n'); //buffer until linefead
   }
-}
 
-void draw()
-{
+void serialEvent(Serial p) {
   if (myPort != null) {
     if ( myPort.available() > 0) {  // If data is available,
       delay(3); 
@@ -102,35 +82,33 @@ void draw()
         distance = myPort.read();
         myPort.read(); //read newline char
 
-        distances.put(position, distance); 
-        print(position);
+        //UPDATE VALUES
+        updateHistoryPoints(position, distance);
+        
+        map.update(position, distance, ROBOX_X, ROBOX_Y);
+          
+          
+        print("received pos:", position, " distance:", distance);
         print(" - = ");
         println(distance);
       }
     }
   }
-  //DemoData
-  else {
-    distances.put(0, 0);
-    distances.put(5, 30);
-    distances.put(10, 30);
-    distances.put(15, 34);
-    distances.put(20, 35);
-    distances.put(25, 37);
+}
 
-    distances.put(90, 75);
-    distances.put(160, 26);
-    distances.put(163, 180);
-    distances.put(165, 180);
-  }
-
+void draw()
+{
+  frame.setTitle(str((frameRate))+"fps");
+  
+  
   background(bgcolor);
   sweeper();
   circle();
   drawHistoryPoints();
   drawCompass();
-  updateMap();
-  drawMap();
+
+  map.display();
+  //drawMap();
   //translate();
   //stipje();
 
@@ -169,6 +147,10 @@ void circle() {
   }
 }
 
+void updateHistoryPoints(int position, int distance) {
+  distances.put(position, distance);
+}
+
 void drawHistoryPoints() {
   //drawOldValues
   stroke(#FFFFFF);
@@ -179,15 +161,15 @@ void drawHistoryPoints() {
   for (int x=0; x< 180;x++) {
     Integer val = distances.get(x);
     if (val != null) {
-      println("val ==", val);
+    //  println("val ==", val);
       float circleAngle = map(x, 0, 180, 0, PI);
       float vectorLength = map(val, 0, 255, 0, radarSize/2);
-      println("circleAngle: ", circleAngle);
-      println("vectorSize: ", vectorLength);
+    //  println("circleAngle: ", circleAngle);
+    // println("vectorSize: ", vectorLength);
 
       float xCoor = xradar - (cos(circleAngle) * vectorLength);
       float yCoor = yradar - (sin(circleAngle) * vectorLength);
-      println("calculated: " +  val + " " + xCoor + " " + yCoor);
+    //  println("calculated: " +  val + " " + xCoor + " " + yCoor);
       ellipse(xCoor, yCoor, 5, 5);
       // println("rendering history point: ", val, " - " , rond, " - - ");
     }
@@ -211,58 +193,6 @@ void sweeper() {
   }
 }
 
-void drawMap() {
-  int xOffset = 400;
-  int yOffset = 500;
-  translate(xOffset, yOffset);
-  for (int x=0; x < MAP_SIZE_X; x++) {
-    for (int y=0; y< MAP_SIZE_Y; y++) {
-
-      switch(map[x][y])
-      {
-      case OBSTACLE:
-        fill(10, 100, 10);
-        break;
-      case CLEAR:
-        fill(200);
-        break;
-      default:
-        fill(20);
-        break;
-      }
-      print("x ", x);
-      print(" y ", y);
-      println(" map[x][y]", map[x][y]);
-      point(x, y);
-    }
-  }
-
-  //restore translate
-  translate(-xOffset, -yOffset);
-}
-
-
-/**
- UPdates the map based on present coordinates
- **/
-void updateMap() {
-  int xPoint =(int) (ROBOX_X + (cos(position) * distance * MAP_TO_DISTANCE_RATIO));
-  int yPoint =(int) (ROBOX_Y + (sin(position) * distance * MAP_TO_DISTANCE_RATIO));
-
-  if (xPoint > MAP_SIZE_X)
-    xPoint = MAP_SIZE_X-1;
-
-  if (yPoint > MAP_SIZE_Y)
-    yPoint = MAP_SIZE_Y-1;
-
-  if (xPoint < 0)
-    xPoint = 0;
-
-  if (yPoint < 0)
-    yPoint = 0;
-
-  map[xPoint][yPoint] = OBSTACLE;
-}
 
 
 void stipje() {
