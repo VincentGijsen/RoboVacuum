@@ -3,14 +3,13 @@
 #define trigPin 3
 #define echoPin 2
 #define led 7
-#define led2 3
 #define servoPin 4
 
 #define SERVOMIN 20
 #define SERVOMAX 160
 #define SERVOINCREMENT 5
-#define STEPSLEEP 100
-
+#define STEPSLEEP 20
+#define DELIM ','
 
 /*
 Commands
@@ -24,47 +23,67 @@ Commands
 
 #include <Servo.h>
 
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_HMC5883_U.h>
+#include <NewPing.h>
+
+
+Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
+
 Servo myServo;
+NewPing sonar(trigPin, echoPin, 200);
 
 int direction = 0;
 int position = SERVOMIN;
+float headingDegrees =0;
 
 int _radarActive = 0;
 
 void setup() {
-  Serial.begin (9600);
+  Serial.begin (38400);
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   pinMode(led, OUTPUT);
-  pinMode(led2, OUTPUT);
 
   myServo.attach(servoPin);
-}
-
-int measure(){
-  long duration, distance;
-  digitalWrite(trigPin, LOW);  // Added this line
-  delayMicroseconds(2); // Added this line
-  digitalWrite(trigPin, HIGH);
-  //  delayMicroseconds(1000); - Removed this line
-  delayMicroseconds(10); // Added this line
-  digitalWrite(trigPin, LOW);
-  duration = pulseIn(echoPin, HIGH);
-  distance = (duration/2) / 29.1;
-  if (distance >= 200 || distance <= 0){
-    distance = 0;
+  if(!mag.begin())
+  {
+    /* There was a problem detecting the HMC5883 ... check your connections */
+    Serial.println("Ooops, no HMC5883 detected ... Check your wiring!");
+    while(1);
   }
-  return distance;
-}
 
+}
 
 void loop() {
+  //the read distance
+  int val = 0 ;
+  int cnt = 0;
+  long avg = 0;
+
   //handles rs232 stuff
   handleCommands();
-  
+
+  sensors_event_t event; 
+  mag.getEvent(&event);
+  float heading = atan2(event.magnetic.y, event.magnetic.x);
+  // Correct for when signs are reversed.
+  if(heading < 0)
+    heading += 2*PI;
+
+  // Check for wrap due to addition of declination.
+  if(heading > 2*PI)
+    heading -= 2*PI;
+
+  // Convert radians to degrees for readability.
+  headingDegrees = heading * 180/M_PI; 
+
+
+
   //handles radar active
   if (_radarActive){
-    delay(STEPSLEEP);
+
     if (direction == 0){
       position+=SERVOINCREMENT;
 
@@ -80,27 +99,21 @@ void loop() {
       }
     }
     myServo.write(position);
+    delay(STEPSLEEP);
 
-    int cnt = 0;
-    long avg = 0;
-
-    for (int x=0; x< DISTANCESAMPLES; x++){
-      int buff = measure();
-      if (buff > 0){
-        avg += buff;
-        cnt++;
-      }
-
-    }
-
-    int val = (int) (avg/cnt);
-    Serial.print("|");
-    Serial.write(position);
-    Serial.print(",");
-    Serial.write(val);
-    Serial.write('\n');
-    //  Serial.println(" degree");
   }
+  //ping distance  
+  val = sonar.ping_cm();
+
+  Serial.print("|");
+  Serial.print(DELIM);
+  Serial.print(position);
+  Serial.print(DELIM);
+  Serial.print(val);
+  Serial.print(DELIM);
+  Serial.print(headingDegrees);
+  Serial.print("\n");
+  //  Serial.println(" degree");
 }
 
 void handleCommands(){
@@ -114,8 +127,8 @@ void handleCommands(){
     case STOP_RADAR:
       _radarActive = 0;
       break;
-     default:
-      Serial.print("got" + incomingByte);
+    default:
+      Serial.println("got" + incomingByte);
       break;
 
 
@@ -123,6 +136,10 @@ void handleCommands(){
   }
 
 }
+
+
+
+
 
 
 

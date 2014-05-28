@@ -41,7 +41,9 @@ public  int ROBOX_X = MAP_SIZE_X/2;
 public  int ROBOX_Y = MAP_SIZE_Y/2;
 
 
-
+//PROTOCOL
+public final static String PREAMBLE = "|";
+public final static char DELIM = ',';
 
 HashMap<Integer, Integer> distances = new HashMap<Integer, Integer>();
 
@@ -59,38 +61,77 @@ int position;
 int distance;
 
 
+
 void setup() 
 {
   size(900, 768);
   println(Serial.list());
   String portName = Serial.list()[0];
-  myPort = new Serial(this, "/dev/tty.usbmodem1411", 9600);
-  //myPort = new Serial(this, "/dev/tty.Bluetooth-Modem", 9600);
+  //myPort = new Serial(this, "/dev/tty.Robot-DevB", 38400);
+  //myPort = new Serial(this, "/dev/cu.Bluetooth-Incoming-Port", 9600);
+  myPort = new Serial(this, "/dev/tty.usbserial-A800F0BU", 38400);
+
   map = new NavigationMap(MAP_SIZE_X, MAP_SIZE_Y, MAP_RATIO);
 
   myPort.bufferUntil('\n'); //buffer until linefead
-  }
+}
 
 void serialEvent(Serial p) {
   if (myPort != null) {
+    /*
     if ( myPort.available() > 0) {  // If data is available,
-      delay(3); 
-      int c = myPort.read();
-      if (c == '|') { //sync byte
-        position = myPort.read();
-        myPort.read(); //read separator
-        distance = myPort.read();
-        myPort.read(); //read newline char
+     delay(3); 
+     byte [] fbuff  = new byte[4];
+     int c = myPort.read();
+     if (c == '|') { //sync byte
+     position = myPort.read();
+     myPort.read(); //read separator
+     distance = myPort.read();
+     myPort.read(); //read delim
+     
+     myPort.readBytes(fbuff);
+     int intbit = 0;
+     intbit = (fbuff[3] << 24) | (fbuff[2]  &0xff << 16) | (fbuff[1]  &0xff << 8) | fbuff[0] & 0xff;
+     angle = myPort.read();
+     myPort.read(); //read newline char
+     
+     //UPDATE VALUES
+     updateHistoryPoints(position, distance);
+     
+     map.update(position, distance, ROBOX_X, ROBOX_Y);
+     
+     
+     print("received pos:", position, " distance:", distance, "angle ", angle);
+     print(" - = ");
+     println(distance);
+     }
+     */
+
+
+    while (myPort.available () > 0) {
+      String inBuffer = myPort.readString();   
+      if (inBuffer != null) {
+        println(inBuffer);
+     
+
+      String[] vals = split(inBuffer, DELIM);
+      print("vals size: ", vals.length);
+      //valid package
+      if (vals[0].equals(PREAMBLE) && vals.length == 4) {
+        print("valid package received ", vals[1]);
+        print(" end");
+        position = int(vals[1]);
+        distance = int(vals[2]);
+        angle = (float) Math.floor(Float.valueOf(vals[3]));
 
         //UPDATE VALUES
         updateHistoryPoints(position, distance);
-        
+
         map.update(position, distance, ROBOX_X, ROBOX_Y);
-          
-          
-        print("received pos:", position, " distance:", distance);
-        print(" - = ");
-        println(distance);
+      }
+      else {
+        print("invalid data ", inBuffer);
+      }
       }
     }
   }
@@ -99,8 +140,8 @@ void serialEvent(Serial p) {
 void draw()
 {
   frame.setTitle(str((frameRate))+"fps");
-  
-  
+
+
   background(bgcolor);
   sweeper();
   circle();
@@ -161,15 +202,15 @@ void drawHistoryPoints() {
   for (int x=0; x< 180;x++) {
     Integer val = distances.get(x);
     if (val != null) {
-    //  println("val ==", val);
+      //  println("val ==", val);
       float circleAngle = map(x, 0, 180, 0, PI);
       float vectorLength = map(val, 0, 255, 0, radarSize/2);
-    //  println("circleAngle: ", circleAngle);
-    // println("vectorSize: ", vectorLength);
+      //  println("circleAngle: ", circleAngle);
+      // println("vectorSize: ", vectorLength);
 
       float xCoor = xradar - (cos(circleAngle) * vectorLength);
       float yCoor = yradar - (sin(circleAngle) * vectorLength);
-    //  println("calculated: " +  val + " " + xCoor + " " + yCoor);
+      //  println("calculated: " +  val + " " + xCoor + " " + yCoor);
       ellipse(xCoor, yCoor, 5, 5);
       // println("rendering history point: ", val, " - " , rond, " - - ");
     }
